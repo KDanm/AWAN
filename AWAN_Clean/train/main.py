@@ -5,12 +5,15 @@ import torch.optim as optim
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
+import pandas as pd
+import tomllib
 import os
 import time
 import random
-from dataset import HyperDatasetValid, HyperDatasetTrain1, HyperDatasetTrain2, HyperDatasetTrain3, HyperDatasetTrain4  # Clean Data set
+from dataset import HyperDatasetValid, HyperDatasetTrain1, HyperDatasetTrain2, HyperDatasetTrain3, HyperDatasetTrain4, BackgroundDataset  # Clean Data set
 from AWAN import AWAN
-from utils import AverageMeter, initialize_logger, save_checkpoint, record_loss, LossTrainCSS, Loss_valid
+from utils import AverageMeter, initialize_logger, save_checkpoint, record_loss, LossTrainCSS, LossTrainCSSSAT, Loss_valid
+from utils import dict_to_object
 
 
 os.environ["CUDA_DEVICE_ORDER"] = 'PCI_BUS_ID'
@@ -32,26 +35,43 @@ def main():
 
     # load dataset
     print("\nloading dataset ...")
-    train_data1 = HyperDatasetTrain1(mode='train')
-    train_data2 = HyperDatasetTrain2(mode='train')
-    train_data3 = HyperDatasetTrain3(mode='train')
-    train_data4 = HyperDatasetTrain4(mode='train')
-    print("Train1:%d,Train2:%d,Train3:%d,Train4:%d," % (len(train_data1), len(train_data2), len(train_data3), len(train_data4),))
-    val_data = HyperDatasetValid(mode='valid')
+    # train_data1 = HyperDatasetTrain1(mode='train')
+    # train_data2 = HyperDatasetTrain2(mode='train')
+    # train_data3 = HyperDatasetTrain3(mode='train')
+    # train_data4 = HyperDatasetTrain4(mode='train')
+    # print("Train1:%d,Train2:%d,Train3:%d,Train4:%d," % (len(train_data1), len(train_data2), len(train_data3), len(train_data4),))
+    # val_data = HyperDatasetValid(mode='valid')
+    df = pd.read_csv("/home/danielk-gpu/Projects/Momentick/momentick-monorepo/libs/train/tmp/updated_background_dataset.csv")
+    df_train = df[df["fold_1"] == "train"]
+    df_valid = df[df["fold_1"] == "valid"]
+
+    with open("/home/danielk-gpu/Projects/AWAN/AWAN/config.toml", "rb") as f:
+        config = tomllib.load(f)
+    config = dict_to_object(config)
+
+    train_data = BackgroundDataset(config, df_train)
+    val_data = BackgroundDataset(config, df_valid)
     print("Validation set samples: ", len(val_data))
-    # Data Loader (Input Pipeline)
-    train_loader1 = DataLoader(dataset=train_data1, batch_size=opt.batchSize, shuffle=True, num_workers=2, pin_memory=True, drop_last=True)
-    train_loader2 = DataLoader(dataset=train_data2, batch_size=opt.batchSize, shuffle=True, num_workers=2, pin_memory=True, drop_last=True)
-    train_loader3 = DataLoader(dataset=train_data3, batch_size=opt.batchSize, shuffle=True, num_workers=2, pin_memory=True, drop_last=True)
-    train_loader4 = DataLoader(dataset=train_data4, batch_size=opt.batchSize, shuffle=True, num_workers=2, pin_memory=True, drop_last=True)
-    train_loader = [train_loader1, train_loader2, train_loader3, train_loader4]
+
+    # # Data Loader (Input Pipeline)
+    # train_loader1 = DataLoader(dataset=train_data1, batch_size=opt.batchSize, shuffle=True, num_workers=2, pin_memory=True, drop_last=True)
+    # train_loader2 = DataLoader(dataset=train_data2, batch_size=opt.batchSize, shuffle=True, num_workers=2, pin_memory=True, drop_last=True)
+    # train_loader3 = DataLoader(dataset=train_data3, batch_size=opt.batchSize, shuffle=True, num_workers=2, pin_memory=True, drop_last=True)
+    # train_loader4 = DataLoader(dataset=train_data4, batch_size=opt.batchSize, shuffle=True, num_workers=2, pin_memory=True, drop_last=True)
+    # train_loader = [train_loader1, train_loader2, train_loader3, train_loader4]
+    # val_loader = DataLoader(dataset=val_data, batch_size=1,  shuffle=False, num_workers=2, pin_memory=True)
+
+    train_loader = DataLoader(dataset=train_data, batch_size=opt.batchSize, shuffle=True, num_workers=2, pin_memory=True, drop_last=True)
+    train_loader = [train_loader]
     val_loader = DataLoader(dataset=val_data, batch_size=1,  shuffle=False, num_workers=2, pin_memory=True)
 
     # model
     print("\nbuilding models_baseline ...")
-    model = AWAN(3, 31, 200, 8)
+    # model = AWAN(3, 31, 200, 8)
+    model = AWAN(8, 2, 200, 8)
     print('Parameters number is ', sum(param.numel() for param in model.parameters()))
-    criterion_train = LossTrainCSS()
+    # criterion_train = LossTrainCSS()
+    criterion_train = LossTrainCSSSAT()
     criterion_valid = Loss_valid()
     if torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)  # batchsize integer times
@@ -123,15 +143,18 @@ def train(train_loader, model, criterion, optimizer, epoch, iteration, init_lr, 
             iteration = iteration + 1
             # Forward + Backward + Optimize
             output = model(images)
-            loss, loss_rgb = criterion(output, labels, images)
-            loss_all = loss + trade_off * loss_rgb
+            # loss, loss_rgb = criterion(output, labels, images)
+            loss = criterion(output, labels)
+            # loss_all = loss + trade_off * loss_rgb
+            loss_all = loss
             optimizer.zero_grad()
             loss_all.backward()
             # Calling the step function on an Optimizer makes an update to its parameters
             optimizer.step()
             #  record loss
             losses.update(loss.data)
-            losses_rgb.update(loss_rgb.data)
+            # losses_rgb.update(loss_rgb.data)
+            losses_rgb.update(0)
             print('[Epoch:%02d],[Process:%d/%d],[iter:%d],lr=%.9f,train_losses.avg=%.9f, rgb_train_losses.avg=%.9f'
                   % (epoch, k+1, len(train_loader), iteration, lr, losses.avg, losses_rgb.avg))
 

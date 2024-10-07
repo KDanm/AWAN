@@ -6,6 +6,7 @@ import logging
 import numpy as np
 import os
 import hdf5storage
+from types import SimpleNamespace
 
 
 class AverageMeter(object):
@@ -78,6 +79,36 @@ class Loss_valid(nn.Module):
         rrmse = torch.mean(error.view(-1))
         return rrmse
 
+class LossTrainCSSSAT(nn.Module):
+    def __init__(self):
+        super(LossTrainCSSSAT, self).__init__()
+        # self.model_hs2rgb = nn.Conv2d(31, 3, 1, bias=False)
+        # filtersPath = './cie_1964_w_gain.npz'
+        # cie_matrix = np.load(filtersPath)['filters']
+        # cie_matrix = torch.from_numpy(np.transpose(cie_matrix, [1, 0])).unsqueeze(-1).unsqueeze(-1).float()
+        # self.model_hs2rgb.weight.data = cie_matrix
+        # self.model_hs2rgb.weight.requires_grad = False
+
+    def forward(self, outputs, label):
+        rrmse = self.mrae_loss(outputs, label)
+        # hs2rgb
+        # rgb_tensor = self.model_hs2rgb(outputs)
+        # rgb_tensor = rgb_tensor / 255
+        # rgb_tensor = torch.clamp(rgb_tensor, 0, 1) * 255
+        # rgb_tensor = torch.tensor(rgb_tensor).byte().float()
+        # rgb_tensor = rgb_tensor / 255
+        # rrmse_rgb = self.rgb_mrae_loss(rgb_tensor, rgb_label)
+        return rrmse #, rrmse_rgb
+
+    def mrae_loss(self, outputs, label):
+        error = torch.abs(outputs - label) / label
+        mrae = torch.mean(error.view(-1))
+        return mrae
+
+    def rgb_mrae_loss(self, outputs, label):
+        error = torch.abs(outputs - label)
+        mrae = torch.mean(error.view(-1))
+        return mrae
 
 class LossTrainCSS(nn.Module):
     def __init__(self):
@@ -110,3 +141,31 @@ class LossTrainCSS(nn.Module):
         mrae = torch.mean(error.view(-1))
         return mrae
 
+def dict_to_object(d: dict | SimpleNamespace) -> SimpleNamespace:
+    if not isinstance(d, dict):
+        return d
+    return SimpleNamespace(**{k: dict_to_object(v) for k, v in d.items()})
+
+
+def object_to_dict(obj: SimpleNamespace | dict) -> dict | list[dict]:
+    """Recursively convert a nested SimpleNamespace to a dictionary.
+
+    Args:
+    ----
+    - obj (SimpleNamespace): The SimpleNamespace instance to convert.
+
+    Returns:
+    -------
+    - dict: A dictionary representation of the SimpleNamespace.
+
+    """
+    if isinstance(obj, SimpleNamespace):
+        # Convert the SimpleNamespace to a dictionary, recursively applying
+        return {k: object_to_dict(v) for k, v in vars(obj).items()}
+    elif isinstance(obj, dict):  # pragma: no cover
+        # If the current object is a dictionary, apply the conversion to each value.
+        return {k: object_to_dict(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [object_to_dict(v) for v in obj]
+
+    return obj

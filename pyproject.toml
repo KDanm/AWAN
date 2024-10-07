@@ -1,0 +1,46 @@
+[tool.poetry]
+name = "momentick-train"
+version = "0.1.0"
+description = ""
+authors = ["Petr Nazarov <petr.tzur.nazarov@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "3.11.9"
+torch = "^2.3.1"
+pandas = "^1.5.3"
+matplotlib = "^3.9.0"
+torchvision = "^0.18.1"
+tqdm = "^4.66.4"
+optuna = "^3.6.1"
+aim = "^3.22.0"
+scipy = "^1.14.0"
+scikit-learn = "^1.5.0"
+numpy = "1.24.2"
+einops = "^0.8.0"
+torchseg = "^0.0.1a4"
+ema-pytorch = "^0.5.2"
+h5py = "^3.11.0"
+hdf5storage = "^0.1.19"
+
+
+[tool.poetry.group.dev.dependencies]
+# momentick-config = { path = "../../libs/config", develop = true}
+ruff = "^0.5.4"
+pyright = "^1.1.373"
+coverage = "^7.6.1"
+jupyter = "^1.1.0"
+notebook = "^7.2.2"
+
+[tool.poetry.scripts]
+lint = "momentick_config.ci:lint"
+lint_fix = "momentick_config.ci:lint_fix"
+format = "momentick_config.ci:format"
+format_fix = "momentick_config.ci:format_fix"
+fix = "momentick_config.ci:fix"
+commit = "momentick_config.cz:commit"
+wip = "momentick_config.cz:commit_wip"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
